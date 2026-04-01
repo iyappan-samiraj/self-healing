@@ -1,0 +1,2 @@
+{"level":"ERROR","message":"Cannot read properties of undefined (reading 'reduce')","file":"services/orderService.js","line":18,"timestamp":"2026-04-01T13:31:06.125Z"}
+{"level":"ERROR","message":"Cannot read properties of undefined (reading 'reduce')","file":"app.js","line":10,"timestamp":"2026-04-01T13:31:06.156Z"}
