@@ -14,7 +14,9 @@ async function getOrder(id) {
 
 async function createOrder(data) {
   try {
-    const amount = data.items.reduce((s, i) => s + i.price, 0);
+    // Ensure data.items is always an array before calling reduce
+    const items = data && Array.isArray(data.items) ? data.items : [];
+    const amount = items.reduce((s, i) => s + (i && typeof i.price === "number" ? i.price : 0), 0);
     const payment = await processPayment(amount);
     return { id: Date.now(), status: payment.status };
   } catch (err) {
