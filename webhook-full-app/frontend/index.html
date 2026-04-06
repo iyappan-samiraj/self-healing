@@ -16,14 +16,29 @@
       overflow-x: hidden;
     }
 
+    /* HEADER */
     .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       padding: 15px 20px;
-      font-size: 20px;
+      font-size: 18px;
       font-weight: bold;
       background: #020617;
       border-bottom: 1px solid #1e293b;
     }
 
+    .repo-link {
+      text-decoration: none;
+      color: #38bdf8;
+      font-size: 14px;
+    }
+
+    .repo-link:hover {
+      color: #0ea5e9;
+    }
+
+    /* LAYOUT */
     .app {
       display: flex;
       gap: 20px;
@@ -39,49 +54,7 @@
       border-radius: 12px;
     }
 
-    .nodes-container {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-
-    .node-card {
-      background: #020617;
-      border: 1px solid #334155;
-      padding: 15px;
-      border-radius: 10px;
-      width: 280px;
-      transition: 0.2s;
-      cursor: pointer;
-    }
-
-    .node-card:hover {
-      transform: scale(1.03);
-      border-color: #38bdf8;
-    }
-
-    .node-header {
-      font-weight: bold;
-      margin-bottom: 8px;
-    }
-
-    .node-success {
-      border-left: 4px solid #22c55e;
-    }
-
-    .node-fail {
-      border-left: 4px solid #ef4444;
-    }
-
-    .node-running {
-      border-left: 4px solid #f59e0b;
-    }
-
-    .label {
-      color: #94a3b8;
-      font-size: 12px;
-    }
-
+    /* BUTTON */
     button {
       width: 100%;
       padding: 10px;
@@ -91,17 +64,60 @@
       color: black;
       cursor: pointer;
       margin-top: 10px;
+      font-weight: bold;
     }
 
+    button:disabled {
+      background: gray;
+    }
+
+    /* STATUS */
     .status {
       padding: 10px;
       border-radius: 6px;
       margin-bottom: 10px;
+      font-weight: bold;
     }
 
-    .processing { background: orange; }
-    .completed { background: green; }
-    .failed { background: red; }
+    .processing { background: #f59e0b; }
+    .completed { background: #22c55e; }
+    .failed { background: #ef4444; }
+
+    /* JSON VIEWER */
+    .json-container {
+      background: #020617;
+      padding: 15px;
+      border-radius: 10px;
+      max-height: 450px;
+      overflow: auto;
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    .json-node {
+      margin-top: 4px;
+    }
+
+    .json-line {
+      cursor: pointer;
+    }
+
+    .toggle {
+      color: #facc15;
+      margin-right: 6px;
+    }
+
+    .json-key {
+      color: #38bdf8;
+    }
+
+    .json-value {
+      color: #22c55e;
+    }
+
+    .json-bracket {
+      color: #94a3b8;
+    }
 
     @media (max-width: 768px) {
       .app {
@@ -113,52 +129,73 @@
 
 <body>
 
-<div class="header">🚀 Self-Healing Log Dashboard</div>
+<!-- HEADER -->
+<div class="header">
+  <div>🚀 Self-Healing Log Dashboard</div>
+  <a href="https://github.com/your-username/your-repo" target="_blank" class="repo-link">
+    🔗 View Repo
+  </a>
+</div>
+
 <div id="root"></div>
 
 <script type="text/babel">
 
-function NodeCard({ name, data }) {
-  const [open, setOpen] = React.useState(false);
+/* JSON TREE VIEWER */
+function JsonTree({ data, level = 0 }) {
+  const [open, setOpen] = React.useState(level < 1);
 
-  const isSuccess = data?.result === true;
-  const isError = data?.error;
+  const isObject = typeof data === "object" && data !== null;
 
-  let statusClass = "node-running";
-  if (isSuccess) statusClass = "node-success";
-  if (isError) statusClass = "node-fail";
+  if (!isObject) {
+    return (
+      <span className="json-value">
+        {JSON.stringify(data)}
+      </span>
+    );
+  }
+
+  const isArray = Array.isArray(data);
+  const entries = isArray ? data : Object.entries(data);
 
   return (
-    <div className={`node-card ${statusClass}`} onClick={() => setOpen(!open)}>
-      <div className="node-header">
-        {isSuccess ? "🟢" : isError ? "🔴" : "🟡"} {name}
+    <div className="json-node" style={{ marginLeft: level * 12 }}>
+      <div className="json-line" onClick={() => setOpen(!open)}>
+        <span className="toggle">{open ? "➖" : "➕"}</span>
+        <span className="json-bracket">
+          {isArray ? "[" : "{"}
+        </span>
       </div>
 
-      <div><span className="label">Result:</span> {String(data?.result)}</div>
-      <div><span className="label">Decision:</span> {String(data?.decision)}</div>
-
       {open && (
-        <>
-          <hr />
-          <div><span className="label">Tokens:</span> {data?.tokens_used}</div>
-          <div><span className="label">Model:</span> {data?.model_used}</div>
-          <div><span className="label">Section:</span> {data?.metadata?.section}</div>
-
-          {data?.error && (
-            <div style={{ color: "red" }}>
-              Error: {JSON.stringify(data.error)}
-            </div>
-          )}
-        </>
+        <div>
+          {isArray
+            ? data.map((item, i) => (
+                <div key={i}>
+                  <JsonTree data={item} level={level + 1} />
+                </div>
+              ))
+            : entries.map(([key, value]) => (
+                <div key={key}>
+                  <span className="json-key">{key}: </span>
+                  <JsonTree data={value} level={level + 1} />
+                </div>
+              ))}
+        </div>
       )}
+
+      <div className="json-bracket">
+        {isArray ? "]" : "}"}
+      </div>
     </div>
   );
 }
 
+/* MAIN APP */
 function App() {
   const [file, setFile] = React.useState(null);
   const [status, setStatus] = React.useState("");
-  const [result, setResult] = React.useState({});
+  const [result, setResult] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
 
   async function uploadFile() {
@@ -186,7 +223,11 @@ function App() {
     }
   }
 
+  /* POLLING */
   function poll(id, token) {
+    let attempts = 0;
+    const maxAttempts = 50;
+
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/status/${id}?token=${token}`);
@@ -201,8 +242,12 @@ function App() {
         setResult(outputs);
 
         const nodeCount = Object.keys(outputs).length;
+        attempts++;
 
-        if (s === "completed" && nodeCount >= 10) {
+        if (
+          (s === "completed" && nodeCount >= 10) ||
+          attempts > maxAttempts
+        ) {
           clearInterval(interval);
           setLoading(false);
         }
@@ -218,10 +263,15 @@ function App() {
   return (
     <div className="app">
 
+      {/* LEFT PANEL */}
       <div className="card">
-        <h2>📤 Upload</h2>
+        <h2>📤 Upload File</h2>
 
-        <input type="file" onChange={(e) => setFile(e.target.files[0])} />
+        <input
+          type="file"
+          onChange={(e) => setFile(e.target.files[0])}
+        />
+
         {file && <p>{file.name}</p>}
 
         <button onClick={uploadFile} disabled={!file || loading}>
@@ -229,18 +279,24 @@ function App() {
         </button>
       </div>
 
+      {/* RIGHT PANEL */}
       <div className="card">
         <h2>📊 Status</h2>
 
-        {status && <div className={`status ${status}`}>{status}</div>}
+        {status && (
+          <div className={`status ${status}`}>
+            {status}
+          </div>
+        )}
 
-        <h3>Nodes</h3>
-
-        <div className="nodes-container">
-          {Object.entries(result).map(([key, value]) => (
-            <NodeCard key={key} name={key} data={value} />
-          ))}
-        </div>
+        {result && (
+          <>
+            <h3>Result</h3>
+            <div className="json-container">
+              <JsonTree data={result} />
+            </div>
+          </>
+        )}
       </div>
 
     </div>
