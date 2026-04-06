@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Self Healing Log Dashboard</title>
+
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background: radial-gradient(circle at top, #0f172a, #020617);
+      color: white;
+    }
+
+    .header {
+      padding: 20px 30px;
+      font-size: 22px;
+      font-weight: bold;
+      background: rgba(15,23,42,0.8);
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .app {
+      display: flex;
+      gap: 20px;
+      padding: 30px;
+    }
+
+    .card {
+      flex: 1;
+      background: rgba(30,41,59,0.8);
+      backdrop-filter: blur(10px);
+      padding: 25px;
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      transition: 0.3s;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+    }
+
+    .drop {
+      border: 2px dashed #475569;
+      padding: 30px;
+      text-align: center;
+      border-radius: 12px;
+      margin-bottom: 15px;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      font-weight: bold;
+      background: linear-gradient(90deg, #38bdf8, #6366f1);
+      color: white;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background: gray;
+    }
+
+    .status {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
+    .processing { background: #f59e0b; }
+    .completed { background: #22c55e; }
+    .failed { background: #ef4444; }
+
+    .loader {
+      border: 4px solid #1e293b;
+      border-top: 4px solid #38bdf8;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 10px auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    pre {
+      background: black;
+      padding: 10px;
+      border-radius: 8px;
+      max-height: 300px;
+      overflow: auto;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="header">🚀 Self-Healing Log Dashboard</div>
+
+<div id="root"></div>
+
+<script type="text/babel">
+function App() {
+  const [file, setFile] = React.useState(null);
+  const [status, setStatus] = React.useState("");
+  const [result, setResult] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+
+  async function uploadFile() {
+    if (!file) return;
+
+    setLoading(true);
+    setStatus("processing");
+
+    const fd = new FormData();
+    fd.append('file', file);
+
+    try {
+      const res = await fetch('/upload', {
+        method: 'POST',
+        body: fd
+      });
+
+      const data = await res.json();
+
+      const id = data.data.execution_id;
+      const token = data.data.polling_token;
+
+      poll(id, token);
+
+    } catch (err) {
+      setStatus("failed");
+      setLoading(false);
+    }
+  }
+
+  function poll(id, token) {
+    const interval = setInterval(async () => {
+      const res = await fetch(`/status/${id}?token=${token}`);
+      const data = await res.json();
+
+      const s = data.data.status;
+      setStatus(s);
+
+      if (s === "completed") {
+        clearInterval(interval);
+        setResult(JSON.stringify(data.data.outputs, null, 2));
+        setLoading(false);
+      }
+
+      if (s === "failed") {
+        clearInterval(interval);
+        setLoading(false);
+      }
+
+    }, 3000);
+  }
+
+  return (
+    <div className="app">
+
+      <div className="card">
+        <h2>📤 Upload</h2>
+
+        <div className="drop">
+          <input type="file" onChange={(e) => setFile(e.target.files[0])} />
+          {file && <p>{file.name}</p>}
+        </div>
+
+        <button onClick={uploadFile} disabled={!file || loading}>
+          {loading ? "Processing..." : "Upload & Process"}
+        </button>
+      </div>
+
+      <div className="card">
+        <h2>📊 Status</h2>
+
+        {loading && <div className="loader"></div>}
+
+        {status && <div className={`status ${status}`}>{status}</div>}
+
+        {result && <pre>{result}</pre>}
+      </div>
+
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+
+</body>
+</html>

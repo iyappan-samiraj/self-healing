@@ -1,0 +1,8 @@
+{
+  "name": "webhook-full-app",
+  "version": "1.0.0",
+  "scripts": {
+    "install-all": "cd backend && npm install",
+    "start": "node backend/server.js"
+  }
+}
