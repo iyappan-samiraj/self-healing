@@ -25,7 +25,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     filePath = file.path;
 
     const formData = new FormData();
-    formData.append('sample', fs.createReadStream(filePath), file.originalname);
+    formData.append('content', fs.createReadStream(filePath), file.originalname);
 
     console.log("WEBHOOK_URL:", process.env.WEBHOOK_URL);
 
