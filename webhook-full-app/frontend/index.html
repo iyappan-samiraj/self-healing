@@ -154,40 +154,50 @@ function App() {
 
   /* 🔥 POLLING WITH MIN 10 NODES CONDITION */
   function poll(id, token) {
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/status/${id}?token=${token}`);
-        const data = await res.json();
+  let attempts = 0;
+  const maxAttempts = 50; // safety
 
-        if (!data.success) {
-          setStatus("failed");
-          clearInterval(interval);
-          return;
-        }
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch(`/status/${id}?token=${token}`);
+      const data = await res.json();
 
-        const s = data?.data?.status;
-        const outputs = data?.data?.outputs;
-
-        setStatus(s);
-
-        // ✅ count nodes
-        const nodeCount = outputs ? Object.keys(outputs).length : 0;
-
-        console.log("Node count:", nodeCount);
-
-        // 🔥 CONDITION: wait until completed + at least 10 nodes
-        if (s === "completed" && nodeCount >= 10) {
-          clearInterval(interval);
-          setResult(outputs);
-          setLoading(false);
-        }
-
-      } catch (err) {
-        setStatus("failed");
-        clearInterval(interval);
+      if (!data || !data.data) {
+        console.log("Invalid response");
+        return;
       }
-    }, 3000);
-  }
+
+      const status = data.data.status;
+      const outputs = data.data.outputs || {};
+
+      const nodeCount = Object.keys(outputs).length;
+
+      console.log("STATUS:", status, "NODES:", nodeCount);
+
+      // ✅ ALWAYS update UI (this is what you missed)
+      setStatus(status);
+      setResult(outputs);
+
+      attempts++;
+
+      // ✅ STOP CONDITION
+      if (
+        (status === "completed" && nodeCount >= 10) ||
+        attempts > maxAttempts
+      ) {
+        console.log("Polling stopped");
+        clearInterval(interval);
+        setLoading(false);
+      }
+
+    } catch (err) {
+      console.error(err);
+      setStatus("failed");
+      clearInterval(interval);
+      setLoading(false);
+    }
+  }, 3000);
+}
 
   return (
     <div className="app">
