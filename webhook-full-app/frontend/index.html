@@ -39,6 +39,49 @@
       border-radius: 12px;
     }
 
+    .nodes-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .node-card {
+      background: #020617;
+      border: 1px solid #334155;
+      padding: 15px;
+      border-radius: 10px;
+      width: 280px;
+      transition: 0.2s;
+      cursor: pointer;
+    }
+
+    .node-card:hover {
+      transform: scale(1.03);
+      border-color: #38bdf8;
+    }
+
+    .node-header {
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    .node-success {
+      border-left: 4px solid #22c55e;
+    }
+
+    .node-fail {
+      border-left: 4px solid #ef4444;
+    }
+
+    .node-running {
+      border-left: 4px solid #f59e0b;
+    }
+
+    .label {
+      color: #94a3b8;
+      font-size: 12px;
+    }
+
     button {
       width: 100%;
       padding: 10px;
@@ -60,26 +103,6 @@
     .completed { background: green; }
     .failed { background: red; }
 
-    /* JSON Viewer */
-    .json-node {
-      margin-left: 10px;
-      border-left: 1px solid #334155;
-      padding-left: 10px;
-    }
-
-    .json-key {
-      color: #38bdf8;
-    }
-
-    .json-value {
-      color: #22c55e;
-    }
-
-    .toggle {
-      cursor: pointer;
-      color: yellow;
-    }
-
     @media (max-width: 768px) {
       .app {
         flex-direction: column;
@@ -95,33 +118,47 @@
 
 <script type="text/babel">
 
-/* JSON VIEWER COMPONENT */
-function JsonViewer({ data }) {
-  if (typeof data !== "object" || data === null) {
-    return <span className="json-value">{JSON.stringify(data)}</span>;
-  }
+function NodeCard({ name, data }) {
+  const [open, setOpen] = React.useState(false);
+
+  const isSuccess = data?.result === true;
+  const isError = data?.error;
+
+  let statusClass = "node-running";
+  if (isSuccess) statusClass = "node-success";
+  if (isError) statusClass = "node-fail";
 
   return (
-    <div className="json-node">
-      {Object.entries(data).map(([key, value]) => (
-        <div key={key}>
-          <span className="json-key">{key}: </span>
-          {typeof value === "object" ? (
-            <JsonViewer data={value} />
-          ) : (
-            <span className="json-value">{JSON.stringify(value)}</span>
+    <div className={`node-card ${statusClass}`} onClick={() => setOpen(!open)}>
+      <div className="node-header">
+        {isSuccess ? "🟢" : isError ? "🔴" : "🟡"} {name}
+      </div>
+
+      <div><span className="label">Result:</span> {String(data?.result)}</div>
+      <div><span className="label">Decision:</span> {String(data?.decision)}</div>
+
+      {open && (
+        <>
+          <hr />
+          <div><span className="label">Tokens:</span> {data?.tokens_used}</div>
+          <div><span className="label">Model:</span> {data?.model_used}</div>
+          <div><span className="label">Section:</span> {data?.metadata?.section}</div>
+
+          {data?.error && (
+            <div style={{ color: "red" }}>
+              Error: {JSON.stringify(data.error)}
+            </div>
           )}
-        </div>
-      ))}
+        </>
+      )}
     </div>
   );
 }
 
-/* MAIN APP */
 function App() {
   const [file, setFile] = React.useState(null);
   const [status, setStatus] = React.useState("");
-  const [result, setResult] = React.useState(null);
+  const [result, setResult] = React.useState({});
   const [loading, setLoading] = React.useState(false);
 
   async function uploadFile() {
@@ -141,10 +178,7 @@ function App() {
 
       const data = await res.json();
 
-      const id = data.data.execution_id;
-      const token = data.data.polling_token;
-
-      poll(id, token);
+      poll(data.data.execution_id, data.data.polling_token);
 
     } catch (err) {
       setStatus("failed");
@@ -152,65 +186,42 @@ function App() {
     }
   }
 
-  /* 🔥 POLLING WITH MIN 10 NODES CONDITION */
   function poll(id, token) {
-  let attempts = 0;
-  const maxAttempts = 50; // safety
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/status/${id}?token=${token}`);
+        const data = await res.json();
 
-  const interval = setInterval(async () => {
-    try {
-      const res = await fetch(`/status/${id}?token=${token}`);
-      const data = await res.json();
+        if (!data || !data.data) return;
 
-      if (!data || !data.data) {
-        console.log("Invalid response");
-        return;
-      }
+        const s = data.data.status;
+        const outputs = data.data.outputs || {};
 
-      const status = data.data.status;
-      const outputs = data.data.outputs || {};
+        setStatus(s);
+        setResult(outputs);
 
-      const nodeCount = Object.keys(outputs).length;
+        const nodeCount = Object.keys(outputs).length;
 
-      console.log("STATUS:", status, "NODES:", nodeCount);
+        if (s === "completed" && nodeCount >= 10) {
+          clearInterval(interval);
+          setLoading(false);
+        }
 
-      // ✅ ALWAYS update UI (this is what you missed)
-      setStatus(status);
-      setResult(outputs);
-
-      attempts++;
-
-      // ✅ STOP CONDITION
-      if (
-        (status === "completed" && nodeCount >= 10) ||
-        attempts > maxAttempts
-      ) {
-        console.log("Polling stopped");
+      } catch (err) {
+        setStatus("failed");
         clearInterval(interval);
         setLoading(false);
       }
-
-    } catch (err) {
-      console.error(err);
-      setStatus("failed");
-      clearInterval(interval);
-      setLoading(false);
-    }
-  }, 3000);
-}
+    }, 3000);
+  }
 
   return (
     <div className="app">
 
-      {/* LEFT */}
       <div className="card">
-        <h2>📤 Upload File</h2>
+        <h2>📤 Upload</h2>
 
-        <input
-          type="file"
-          onChange={(e) => setFile(e.target.files[0])}
-        />
-
+        <input type="file" onChange={(e) => setFile(e.target.files[0])} />
         {file && <p>{file.name}</p>}
 
         <button onClick={uploadFile} disabled={!file || loading}>
@@ -218,22 +229,18 @@ function App() {
         </button>
       </div>
 
-      {/* RIGHT */}
       <div className="card">
         <h2>📊 Status</h2>
 
-        {status && (
-          <div className={`status ${status}`}>
-            {status}
-          </div>
-        )}
+        {status && <div className={`status ${status}`}>{status}</div>}
 
-        {result && (
-          <>
-            <h3>Result</h3>
-            <JsonViewer data={result} />
-          </>
-        )}
+        <h3>Nodes</h3>
+
+        <div className="nodes-container">
+          {Object.entries(result).map(([key, value]) => (
+            <NodeCard key={key} name={key} data={value} />
+          ))}
+        </div>
       </div>
 
     </div>
