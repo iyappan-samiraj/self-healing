@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Self Healing Log Dashboard</title>
+  <title>Self Healing Dashboard</title>
 
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -11,93 +11,79 @@
     body {
       margin: 0;
       font-family: 'Inter', sans-serif;
-      background: radial-gradient(circle at top, #0f172a, #020617);
+      background: #0f172a;
       color: white;
+      overflow-x: hidden;
     }
 
     .header {
-      padding: 20px 30px;
-      font-size: 22px;
+      padding: 15px 20px;
+      font-size: 20px;
       font-weight: bold;
-      background: rgba(15,23,42,0.8);
+      background: #020617;
       border-bottom: 1px solid #1e293b;
     }
 
     .app {
       display: flex;
       gap: 20px;
-      padding: 30px;
+      padding: 20px;
+      flex-wrap: wrap;
     }
 
     .card {
       flex: 1;
-      background: rgba(30,41,59,0.8);
-      backdrop-filter: blur(10px);
-      padding: 25px;
-      border-radius: 16px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-      transition: 0.3s;
-    }
-
-    .card:hover {
-      transform: translateY(-5px);
-    }
-
-    .drop {
-      border: 2px dashed #475569;
-      padding: 30px;
-      text-align: center;
+      min-width: 320px;
+      background: #1e293b;
+      padding: 20px;
       border-radius: 12px;
-      margin-bottom: 15px;
     }
 
     button {
       width: 100%;
-      padding: 12px;
-      border-radius: 8px;
+      padding: 10px;
       border: none;
-      font-weight: bold;
-      background: linear-gradient(90deg, #38bdf8, #6366f1);
-      color: white;
+      border-radius: 6px;
+      background: #38bdf8;
+      color: black;
       cursor: pointer;
-    }
-
-    button:disabled {
-      background: gray;
+      margin-top: 10px;
     }
 
     .status {
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 10px;
-      font-weight: bold;
-    }
-
-    .processing { background: #f59e0b; }
-    .completed { background: #22c55e; }
-    .failed { background: #ef4444; }
-
-    .loader {
-      border: 4px solid #1e293b;
-      border-top: 4px solid #38bdf8;
-      border-radius: 50%;
-      width: 30px;
-      height: 30px;
-      animation: spin 1s linear infinite;
-      margin: 10px auto;
-    }
-
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    pre {
-      background: black;
       padding: 10px;
-      border-radius: 8px;
-      max-height: 300px;
-      overflow: auto;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+
+    .processing { background: orange; }
+    .completed { background: green; }
+    .failed { background: red; }
+
+    /* JSON Viewer */
+    .json-node {
+      margin-left: 10px;
+      border-left: 1px solid #334155;
+      padding-left: 10px;
+    }
+
+    .json-key {
+      color: #38bdf8;
+    }
+
+    .json-value {
+      color: #22c55e;
+    }
+
+    .toggle {
+      cursor: pointer;
+      color: yellow;
+    }
+
+    @media (max-width: 768px) {
+      .app {
+        flex-direction: column;
+      }
     }
   </style>
 </head>
@@ -105,14 +91,37 @@
 <body>
 
 <div class="header">🚀 Self-Healing Log Dashboard</div>
-
 <div id="root"></div>
 
 <script type="text/babel">
+
+/* JSON VIEWER COMPONENT */
+function JsonViewer({ data }) {
+  if (typeof data !== "object" || data === null) {
+    return <span className="json-value">{JSON.stringify(data)}</span>;
+  }
+
+  return (
+    <div className="json-node">
+      {Object.entries(data).map(([key, value]) => (
+        <div key={key}>
+          <span className="json-key">{key}: </span>
+          {typeof value === "object" ? (
+            <JsonViewer data={value} />
+          ) : (
+            <span className="json-value">{JSON.stringify(value)}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* MAIN APP */
 function App() {
   const [file, setFile] = React.useState(null);
   const [status, setStatus] = React.useState("");
-  const [result, setResult] = React.useState("");
+  const [result, setResult] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
 
   async function uploadFile() {
@@ -122,11 +131,11 @@ function App() {
     setStatus("processing");
 
     const fd = new FormData();
-    fd.append('file', file);
+    fd.append("file", file);
 
     try {
-      const res = await fetch('/upload', {
-        method: 'POST',
+      const res = await fetch("/upload", {
+        method: "POST",
         body: fd
       });
 
@@ -143,59 +152,85 @@ function App() {
     }
   }
 
+  /* 🔥 POLLING WITH MIN 10 NODES CONDITION */
   function poll(id, token) {
     const interval = setInterval(async () => {
-      const res = await fetch(`/status/${id}?token=${token}`);
-      const data = await res.json();
+      try {
+        const res = await fetch(`/status/${id}?token=${token}`);
+        const data = await res.json();
 
-      const s = data.data.status;
-      setStatus(s);
+        if (!data.success) {
+          setStatus("failed");
+          clearInterval(interval);
+          return;
+        }
 
-      if (s === "completed") {
+        const s = data?.data?.status;
+        const outputs = data?.data?.outputs;
+
+        setStatus(s);
+
+        // ✅ count nodes
+        const nodeCount = outputs ? Object.keys(outputs).length : 0;
+
+        console.log("Node count:", nodeCount);
+
+        // 🔥 CONDITION: wait until completed + at least 10 nodes
+        if (s === "completed" && nodeCount >= 10) {
+          clearInterval(interval);
+          setResult(outputs);
+          setLoading(false);
+        }
+
+      } catch (err) {
+        setStatus("failed");
         clearInterval(interval);
-        setResult(JSON.stringify(data.data.outputs, null, 2));
-        setLoading(false);
       }
-
-      if (s === "failed") {
-        clearInterval(interval);
-        setLoading(false);
-      }
-
     }, 3000);
   }
 
   return (
     <div className="app">
 
+      {/* LEFT */}
       <div className="card">
-        <h2>📤 Upload</h2>
+        <h2>📤 Upload File</h2>
 
-        <div className="drop">
-          <input type="file" onChange={(e) => setFile(e.target.files[0])} />
-          {file && <p>{file.name}</p>}
-        </div>
+        <input
+          type="file"
+          onChange={(e) => setFile(e.target.files[0])}
+        />
+
+        {file && <p>{file.name}</p>}
 
         <button onClick={uploadFile} disabled={!file || loading}>
           {loading ? "Processing..." : "Upload & Process"}
         </button>
       </div>
 
+      {/* RIGHT */}
       <div className="card">
         <h2>📊 Status</h2>
 
-        {loading && <div className="loader"></div>}
+        {status && (
+          <div className={`status ${status}`}>
+            {status}
+          </div>
+        )}
 
-        {status && <div className={`status ${status}`}>{status}</div>}
-
-        {result && <pre>{result}</pre>}
+        {result && (
+          <>
+            <h3>Result</h3>
+            <JsonViewer data={result} />
+          </>
+        )}
       </div>
 
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 </script>
 
 </body>
