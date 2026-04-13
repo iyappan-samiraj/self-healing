@@ -14,7 +14,8 @@ async function getOrder(id) {
 
 async function createOrder(data) {
   try {
-    const amount = data.items.reduce((s, i) => s + i.price, 0);
+    const items = Array.isArray(data?.items) ? data.items : [];
+    const amount = items.reduce((s, i) => s + (Number(i?.price) || 0), 0);
     const payment = await processPayment(amount);
     return { id: Date.now(), status: payment.status };
   } catch (err) {
