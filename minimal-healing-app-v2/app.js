@@ -4,7 +4,15 @@ const orderRoutes = require("./routes/orderRoutes");
 const { logError } = require("./utils/logger");
 
 app.use(express.json());
-app.use("/orders", orderRoutes);
+
+// Ensure arrays expected by order routes (e.g., items) are defined as arrays
+// to prevent crashes when downstream code calls .reduce on them.
+app.use("/orders", (req, res, next) => {
+  if (!Array.isArray(req.body?.items)) {
+    req.body.items = [];
+  }
+  next();
+}, orderRoutes);
 
 process.on("unhandledRejection", (err) => {
   logError(err, { file: "app.js", line: 10 });
